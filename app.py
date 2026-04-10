@@ -62,7 +62,7 @@ st.divider()
 st.subheader("🤖 Ask the AI Business Analyst")
 
 # Setup Gemini
-genai.configure(api_key=st.secrets["AIzaSyCXodY9qCOua_zFFC9G-pqUQu_WeOaIsdk"])
+genai.configure(api_key=st.secrets["AIzaSyCXodY9qCOua_zFFC9G-pqUQu_WeOaIsdk"]
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 if prompt := st.chat_input("Ex: Give me a 3-point summary of this data."):
