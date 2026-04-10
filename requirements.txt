@@ -1,6 +1,6 @@
 streamlit
 pandas
 plotly
-google-genai  <-- Update this
+google-genai
 duckdb
 python-dotenv
