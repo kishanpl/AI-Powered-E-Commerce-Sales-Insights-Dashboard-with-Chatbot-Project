@@ -1,129 +1,156 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from google import genai  # Latest 2026 SDK
+from google import genai
 import duckdb
-import os
 
 # --- 1. PAGE CONFIGURATION ---
-st.set_page_config(page_title="AI Sales Intelligence 2026", layout="wide", page_icon="📈")
+st.set_page_config(
+    page_title="AI Sales Analytics 2026", 
+    layout="wide", 
+    page_icon="💹"
+)
 
 # --- 2. DATA ENGINE (Requirement: Data Cleaning & SQL) ---
 @st.cache_data
-def get_processed_data():
+def load_and_clean_data():
     try:
-        # Load Raw Data
+        # Load the dataset
         df = pd.read_csv("superstore.csv", encoding='latin1')
         
-        # Preprocessing: Fix Dates and Names for SQL
-        df['Order Date'] = pd.to_datetime(df['Order Date'])
+        # Data Cleaning: Fix Dates and Column Names for SQL
+        df['Order_Date'] = pd.to_datetime(df['Order Date'])
+        # Replace spaces/hyphens with underscores for SQL compatibility
         df.columns = [c.replace(' ', '_').replace('-', '_') for c in df.columns]
         
-        # Feature Engineering
-        df['Profit_Margin'] = (df['Profit'] / df['Sales']) * 100
         return df
-    except FileNotFoundError:
-        st.error("❌ 'superstore.csv' not found. Please upload it to your GitHub repository.")
+    except Exception as e:
+        st.error(f"❌ Failed to load data: {e}. Ensure 'superstore.csv' is on GitHub.")
         st.stop()
 
-df = get_processed_data()
+df = load_and_clean_data()
 
-# --- 3. INTERACTIVE FILTERS (Requirement: Filters) ---
-st.sidebar.header("Global Filters")
-region_list = df['Region'].unique().tolist()
-category_list = df['Category'].unique().tolist()
+# --- 3. SIDEBAR FILTERS (Requirement: Filters) ---
+st.sidebar.header("Control Panel")
+all_regions = df['Region'].unique().tolist()
+all_cats = df['Category'].unique().tolist()
 
-selected_region = st.sidebar.multiselect("Select Region", region_list, default=region_list)
-selected_cat = st.sidebar.multiselect("Select Category", category_list, default=category_list)
+selected_regions = st.sidebar.multiselect("Region", all_regions, default=all_regions)
+selected_cats = st.sidebar.multiselect("Category", all_cats, default=all_cats)
 
-# Data Filtering Logic
-filtered_df = df[(df['Region'].isin(selected_region)) & (df['Category'].isin(selected_cat))]
+# Dynamic Filtering
+filtered_df = df[
+    (df['Region'].isin(selected_regions)) & 
+    (df['Category'].isin(selected_cats))
+]
 
 # --- 4. EXECUTIVE DASHBOARD (Requirement: KPI Cards & Visuals) ---
-st.title("🚀 E-Commerce AI Strategy Dashboard")
-st.markdown("### Executive Overview")
+st.title("🛍️ E-Commerce Strategic Dashboard")
+st.markdown("### Real-time Performance Metrics")
 
-# KPI Cards
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-with kpi1:
-    st.metric("Total Sales", f"${filtered_df['Sales'].sum():,.0f}")
-with kpi2:
-    st.metric("Total Profit", f"${filtered_df['Profit'].sum():,.0f}")
-with kpi3:
-    st.metric("Profit Margin", f"{filtered_df['Profit_Margin'].mean():.1f}%")
-with kpi4:
-    st.metric("Orders", f"{len(filtered_df):,}")
+if filtered_df.empty:
+    st.warning("Please select at least one Region and Category to view data.")
+else:
+    # KPI Row
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Total Revenue", f"${filtered_df['Sales'].sum():,.0f}")
+    k2.metric("Total Profit", f"${filtered_df['Profit'].sum():,.0f}")
+    k3.metric("Order Volume", f"{len(filtered_df):,}")
 
-st.divider()
+    st.divider()
 
-# Charts (Requirement: Category, Region, Trends)
-col_left, col_right = st.columns(2)
+    # Visuals Row
+    c1, c2 = st.columns(2)
 
-with col_left:
-    # 1. Sales by Category (Interactive Bar)
-    cat_sales = filtered_df.groupby('Category')['Sales'].sum().reset_index()
-    fig_cat = px.bar(cat_sales, x='Category', y='Sales', title="Revenue by Category", 
-                     color='Category', template="plotly_dark")
-    st.plotly_chart(fig_cat, use_container_width=True)
+    with c1:
+        # Visual 1: Sales by Category (Bar Chart)
+        cat_data = filtered_df.groupby('Category')['Sales'].sum().reset_index()
+        fig_cat = px.bar(cat_data, x='Category', y='Sales', title="Revenue by Category", 
+                         color='Category', template="plotly_white")
+        st.plotly_chart(fig_cat, use_container_width=True)
 
-    # 2. Regional Distribution (Pie Chart)
-    fig_pie = px.pie(filtered_df, values='Sales', names='Region', title="Sales Weight by Region",
-                     hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
-    st.plotly_chart(fig_pie, use_container_width=True)
+        # Visual 2: Sales by Region (Pie Chart)
+        fig_pie = px.pie(filtered_df, values='Sales', names='Region', title="Sales Distribution",
+                         hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+        st.plotly_chart(fig_pie, use_container_width=True)
 
-with col_right:
-    # 3. SQL-Based Trend Analysis (Requirement: SQL Analysis)
-    # Using DuckDB to simulate complex SQL group-bys
-    sql_trend = duckdb.query("""
-        SELECT Order_Date, SUM(Sales) as Daily_Sales 
-        FROM filtered_df 
-        GROUP BY 1 
-        ORDER BY 1
-    """).df()
-    
-    fig_trend = px.line(sql_trend, x='Order_Date', y='Daily_Sales', title="Sales Velocity (Timeline)",
-                        line_shape="spline", render_mode="svg")
-    st.plotly_chart(fig_trend, use_container_width=True)
+    with c2:
+        # Visual 3: SQL Trend Analysis (Requirement: SQL-based Analysis)
+        # We use DuckDB to run actual SQL on the dataframe
+        trend_query = """
+            SELECT Order_Date, SUM(Sales) as Daily_Sales 
+            FROM filtered_df 
+            GROUP BY 1 
+            ORDER BY 1
+        """
+        trend_data = duckdb.query(trend_query).df()
+        
+        fig_trend = px.line(trend_data, x='Order_Date', y='Daily_Sales', title="Sales Velocity (SQL-Calculated)",
+                            line_shape="linear", markers=True)
+        st.plotly_chart(fig_trend, use_container_width=True)
 
 # --- 5. AI CHATBOT (Requirement: Gemini 3 AI & Chatbot) ---
 st.divider()
-st.subheader("🤖 AI Business Analyst (Gemini 3 Flash)")
+st.subheader("🤖 AI Business Analyst (Powered by Gemini 3 Flash)")
 
-# Secure API Key Check
+# Security Check for API Key
 if "GEMINI_API_KEY" not in st.secrets:
-    st.warning("⚠️ Please add your 'GEMINI_API_KEY' to Streamlit Secrets to enable the AI Analyst.")
+    st.info("💡 To enable the AI Analyst, add your GEMINI_API_KEY to Streamlit Secrets.")
 else:
-    # Initialize 2026 Gemini Client
+    # Initialize the 2026 SDK Client
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-    
+
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Display History
+    # Display Chat History
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Chat Interaction
-    if prompt := st.chat_input("Ask about sales trends, margins, or regional performance..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # User Input
+    if prompt := st.chat_input("Ask a question about your sales performance..."):
+        # Stop if data is empty to prevent API errors
+        if filtered_df.empty:
+            st.error("No data available for analysis. Please adjust your filters.")
+        else:
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
 
-        # Build Context (Requirement: AI-Generated Insights)
-        context_summary = f"""
-        Dataset Facts:
-        - Filters applied: Region: {selected_region}, Category: {selected_cat}
-        - Current Sales: ${filtered_df['Sales'].sum():,.0f}
-        - Current Profit: ${filtered_df['Profit'].sum():,.0f}
-        - Top Selling Product: {filtered_df.groupby('Product_Name')['Sales'].sum().idxmax()}
-        """
+            # Context construction for the AI
+            summary = f"""
+            The user is viewing a sales dashboard. 
+            - Total Sales: ${filtered_df['Sales'].sum():,.2f}
+            - Total Profit: ${filtered_df['Profit'].sum():,.2f}
+            - Best Selling Category: {filtered_df.groupby('Category')['Sales'].sum().idxmax()}
+            - Regions filtered: {selected_regions}
+            """
 
-        with st.chat_message("assistant"):
-            # Using Gemini 3 Flash Preview (2026 Model)
-            response = client.models.generate_content(
-                model='gemini-3-flash-preview',
-                contents=f"SYSTEM: You are a Senior Retail Analyst. Use this context: {context_summary}\nUSER: {prompt}"
-            )
-            st.markdown(response.text)
-            st.session_state.messages.append({"role": "assistant", "content": response.text})
+            with st.chat_message("assistant"):
+                # Professional Loading Spinner
+                with st.spinner("Analyzing business metrics..."):
+                    try:
+                        # 2026 Model: gemini-3-flash-preview
+                        response = client.models.generate_content(
+                            model='gemini-3-flash-preview',
+                            contents=prompt,
+                            config={
+                                'system_instruction': f"You are a Senior Business Analyst. Answer based on this data: {summary}"
+                            }
+                        )
+
+                        if response.text:
+                            st.markdown(response.text)
+                            st.session_state.messages.append({"role": "assistant", "content": response.text})
+                        else:
+                            st.warning("The AI could not generate a response. Please try rephrasing your question.")
+
+                    except Exception as e:
+                        # Professional Error Handling for 2026 APIs
+                        if "429" in str(e):
+                            st.error("⏳ Rate limit exceeded. Please wait a minute before asking again.")
+                        elif "400" in str(e):
+                            st.error("🔍 Request Error: Ensure the data is not too large for the model.")
+                        else:
+                            st.error(f"📡 System Communication Error: {e}")
