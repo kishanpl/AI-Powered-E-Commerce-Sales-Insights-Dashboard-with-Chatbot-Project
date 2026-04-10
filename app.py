@@ -62,20 +62,25 @@ st.divider()
 st.subheader("🤖 Ask the AI Business Analyst")
 
 # Setup Gemini
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+from google import genai # Use the new 2026 SDK
+
+# ... inside your app logic ...
+
+# Setup Gemini 3 (Requirement: AI Insights & Chatbot)
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 if prompt := st.chat_input("Ex: Give me a 3-point summary of this data."):
     st.chat_message("user").write(prompt)
     
-    # Context for the AI
     data_context = f"""
-    You are a business analyst. Here is the current dashboard data summary:
-    - Total Sales: ${filtered_df['Sales'].sum():,.2f}
-    - Total Profit: ${filtered_df['Profit'].sum():,.2f}
-    - Highest Selling Category: {filtered_df.groupby('Category')['Sales'].sum().idxmax()}
+    Context: Business analyst for e-commerce. 
+    Stats: Sales ${filtered_df['Sales'].sum():,.2f}, Profit ${filtered_df['Profit'].sum():,.2f}.
     """
     
     with st.chat_message("assistant"):
-        response = model.generate_content(f"{data_context}\n\nUser Question: {prompt}")
+        # Use the 2026 model ID: gemini-3-flash-preview
+        response = client.models.generate_content(
+            model='gemini-3-flash-preview', 
+            contents=f"{data_context}\n\nUser Question: {prompt}"
+        )
         st.write(response.text)
