@@ -85,9 +85,47 @@ with col_right:
                         line_shape="spline", render_mode="svg")
     st.plotly_chart(fig_trend, use_container_width=True)
 
-# --- 5. AI CHATBOT (Requirement: Gemini 3 AI & Chatbot) ---
+# --- 5. THE AI CHATBOT (Requirement: Gemini 3 AI & Chatbot) ---
 st.divider()
-st.subheader("🤖 AI Business Analyst (Gemini 3 Flash)")
+st.subheader("🤖 Chat with your Data")
+
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Show previous messages
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# User asks a question
+if prompt := st.chat_input("Ex: Which category is performing worst?"):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Context for AI
+    data_summary = f"Total Sales: {filtered_df['Sales'].sum()}, Profit: {filtered_df['Profit'].sum()}"
+
+    with st.chat_message("assistant"):
+        # --- ADD THE SPINNER HERE ---
+        with st.spinner("Analysing sales data..."):
+            try:
+                # The AI call happens inside the spinner
+                response = client.models.generate_content(
+                    model='gemini-3-flash-preview',
+                    contents=f"Context: {data_summary}\n\nQuestion: {prompt}"
+                )
+                
+                if response.text:
+                    st.markdown(response.text)
+                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+                else:
+                    st.warning("AI returned an empty response. Try rephrasing.")
+                    
+            except Exception as e:
+                st.error(f"AI Error: {e}")
 
 # Secure API Key Check
 if "GEMINI_API_KEY" not in st.secrets:
